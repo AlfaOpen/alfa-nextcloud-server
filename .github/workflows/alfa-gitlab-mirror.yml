@@ -1,4 +1,4 @@
-name: alfameg-gitlab-mirror
+name: Mirror for Alfameg GitLab
 
 on:
   push:
