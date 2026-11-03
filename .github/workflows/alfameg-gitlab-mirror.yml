@@ -16,7 +16,7 @@ jobs:
         with:
           ref: main-alfameg
       - name: Mirror + trigger CI
-        uses: buluma/gitlab-mirror-ci-action@1.0.7
+        uses: SvanBoxel/gitlab-mirror-and-ci-action@0.6
         with:
           args: "https://gitlab.alfameg.it/developteam/inest-team/nextcloud-apps/alfa-nextcloud-server"
         env:
