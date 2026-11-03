@@ -5,6 +5,10 @@ on:
     branches:
       - 'main-alfameg'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   sync-branch:
     runs-on: ubuntu-latest
@@ -12,34 +16,29 @@ jobs:
       contents: read
       statuses: write
     steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          ref: main-alfameg
-          fetch-depth: 0
       - name: Mirror branch to GitLab
         run: |
           set -euo pipefail
 
-          if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
-            git fetch --unshallow origin "$GITHUB_REF_NAME"
-          else
-            git fetch origin "$GITHUB_REF_NAME"
+          git init --bare --quiet mirror.git
+          cd mirror.git
+
+          refspecs=("+refs/heads/${GITHUB_REF_NAME}:refs/heads/${GITHUB_REF_NAME}")
+          if [[ "$FOLLOW_TAGS" == "true" ]]; then
+            refspecs+=("+refs/tags/*:refs/tags/*")
           fi
 
-          if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
-            echo "::error::The checkout is still shallow; refusing to push an incomplete history."
-            exit 1
-          fi
+          github_auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w 0)"
+          git -c http.extraheader="$github_auth" fetch --no-tags \
+            "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" "${refspecs[@]}"
 
-          auth_header="Authorization: Basic $(printf '%s:%s' "$GITLAB_USERNAME" "$GITLAB_PASSWORD" | base64 -w 0)"
-          git -c http.extraheader="$auth_header" push --force \
-            "https://${GITLAB_HOSTNAME}/developteam/inest-team/nextcloud-apps/alfa-nextcloud-server.git" \
-            "HEAD:refs/heads/${GITHUB_REF_NAME}"
+          gitlab_url="https://${GITLAB_HOSTNAME}/developteam/inest-team/nextcloud-apps/alfa-nextcloud-server.git"
+          gitlab_auth="Authorization: Basic $(printf '%s:%s' "$GITLAB_USERNAME" "$GITLAB_PASSWORD" | base64 -w 0)"
+          git -c http.extraheader="$gitlab_auth" push --force "$gitlab_url" \
+            "refs/heads/${GITHUB_REF_NAME}:refs/heads/${GITHUB_REF_NAME}"
 
           if [[ "$FOLLOW_TAGS" == "true" ]]; then
-            git -c http.extraheader="$auth_header" push --force \
-              "https://${GITLAB_HOSTNAME}/developteam/inest-team/nextcloud-apps/alfa-nextcloud-server.git" \
-              --tags
+            git -c http.extraheader="$gitlab_auth" push --force "$gitlab_url" --tags
           fi
         env:
           FOLLOW_TAGS: "false"
