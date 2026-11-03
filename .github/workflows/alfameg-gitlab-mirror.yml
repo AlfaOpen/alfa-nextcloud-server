@@ -16,10 +16,31 @@ jobs:
         with:
           ref: main-alfameg
           fetch-depth: 0
-      - name: Mirror + trigger CI
-        uses: SvanBoxel/gitlab-mirror-and-ci-action@0.6
-        with:
-          args: "https://gitlab.alfameg.it/developteam/inest-team/nextcloud-apps/alfa-nextcloud-server"
+      - name: Mirror branch to GitLab
+        run: |
+          set -euo pipefail
+
+          if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
+            git fetch --unshallow origin "$GITHUB_REF_NAME"
+          else
+            git fetch origin "$GITHUB_REF_NAME"
+          fi
+
+          if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
+            echo "::error::The checkout is still shallow; refusing to push an incomplete history."
+            exit 1
+          fi
+
+          auth_header="Authorization: Basic $(printf '%s:%s' "$GITLAB_USERNAME" "$GITLAB_PASSWORD" | base64 -w 0)"
+          git -c http.extraheader="$auth_header" push --force \
+            "https://${GITLAB_HOSTNAME}/developteam/inest-team/nextcloud-apps/alfa-nextcloud-server.git" \
+            "HEAD:refs/heads/${GITHUB_REF_NAME}"
+
+          if [[ "$FOLLOW_TAGS" == "true" ]]; then
+            git -c http.extraheader="$auth_header" push --force \
+              "https://${GITLAB_HOSTNAME}/developteam/inest-team/nextcloud-apps/alfa-nextcloud-server.git" \
+              --tags
+          fi
         env:
           FOLLOW_TAGS: "false"
           FORCE_PUSH: "true"
