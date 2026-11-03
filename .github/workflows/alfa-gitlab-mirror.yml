@@ -17,12 +17,26 @@ jobs:
       contents: read
       statuses: write
     steps:
+      - name: Compute cache week
+        id: cache-week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache bare repository
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: mirror.git
+          key: gitlab-mirror-${{ github.ref_name }}-${{ steps.cache-week.outputs.week }}
+          restore-keys: |
+            gitlab-mirror-${{ github.ref_name }}-
+
       - name: Mirror branch to GitLab
         run: |
           set -euo pipefail
 
           git init --bare --quiet mirror.git
           cd mirror.git
+          git config gc.auto 0
+          git config maintenance.auto false
 
           refspecs=("+refs/heads/${GITHUB_REF_NAME}:refs/heads/${GITHUB_REF_NAME}")
           if [[ "$FOLLOW_TAGS" == "true" ]]; then
